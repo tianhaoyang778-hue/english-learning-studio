@@ -1,0 +1,43 @@
+English Learning Studio — Source Available License
+Copyright (c) 2026
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software (the "Software"), to use, copy, and modify it for personal,
+educational, and non-commercial purposes, subject to the following conditions:
+
+1. PERSONAL & EDUCATIONAL USE
+   You may freely use, run, and modify this Software for personal learning,
+   classroom instruction, or non-profit educational purposes.
+
+2. REDISTRIBUTION
+   You may share or redistribute modified or unmodified copies of this Software,
+   provided that:
+   (a) you include this license notice in all copies or substantial portions;
+   (b) you clearly indicate any modifications you have made;
+   (c) you do not misrepresent the original authorship.
+
+3. COMMERCIAL USE RESTRICTION
+   You may NOT use this Software, or any derivative work based on it, for
+   commercial purposes — including selling it, offering it as a paid service,
+   or incorporating it into a commercial product — without explicit written
+   permission from the original author.
+
+4. API KEYS & CREDENTIALS
+   This Software requires users to supply their own API keys from third-party
+   providers (e.g., Zhipu AI, Google Gemini). The original author makes no
+   representations about the availability, pricing, or terms of those services.
+   You are solely responsible for your own API usage and any associated costs.
+
+5. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL
+   THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+   FROM THE USE OF THIS SOFTWARE.
+
+6. ATTRIBUTION
+   If you share or build upon this work, a visible credit to the original project
+   is appreciated but not required.
+
+---
+For commercial licensing inquiries, please open an issue on the GitHub repository.

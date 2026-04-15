@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>English Learning Studio</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+
+/* ═══════════════════════════════════════════════
+   DATA
+   ═══════════════════════════════════════════════ */
+const SAMPLE_TEXT = `Yesterday I goed to the store and buyed some apple. Me and my friend was very tire after the long walk. The weather was good but I feeled cold. She don't know where is the book that I telled her about.`;
+
+const WORDS = "the be to of and a in that have I it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us been call find long down did get come made may part change play any even answer different between work again point spell read why here still large because just only know also ask men good home high air letter country found world kind".split(" ");
+
+function shuffleWords(count) {
+  const r = [];
+  for (let i = 0; i < count; i++) r.push(WORDS[Math.floor(Math.random() * WORDS.length)]);
+  return r;
+}
+
+/* ═══════════════════════════════════════════════
+   STORAGE HELPERS (persistent across sessions)
+   ═══════════════════════════════════════════════ */
+async function loadBank() {
+  try {
+    const result = (() => { const v = localStorage.getItem("grammar-bank"); return v ? { value: v } : null; })();
+    return result ? JSON.parse(result.value) : [];
+  } catch { return []; }
+}
+async function saveBank(cards) {
+  try { localStorage.setItem("grammar-bank", JSON.stringify(cards)); } catch (e) { console.error("Storage save failed:", e); }
+}
+async function loadEssayBank() {
+  try {
+    const result = (() => { const v = localStorage.getItem("essay-bank"); return v ? { value: v } : null; })();
+    return result ? JSON.parse(result.value) : [];
+  } catch { return []; }
+}
+async function saveEssayBank(essays) {
+  try { localStorage.setItem("essay-bank", JSON.stringify(essays)); } catch (e) { console.error("Storage save failed:", e); }
+}
+async function loadPhrasesBank() {
+  try {
+    const result = (() => { const v = localStorage.getItem("phrases-bank"); return v ? { value: v } : null; })();
+    return result ? JSON.parse(result.value) : [];
+  } catch { return []; }
+}
+async function savePhrasesBank(phrases) {
+  try { localStorage.setItem("phrases-bank", JSON.stringify(phrases)); } catch (e) { console.error("Storage save failed:", e); }
+}
+
+/* ═══════════════════════════════════════════════
+   API KEY MANAGEMENT
+   ═══════════════════════════════════════════════ */
+function getStoredKeys() {
+  try {
+    return {
+      zhipu: localStorage.getItem("api-key-zhipu") || "",
+      gemini: localStorage.getItem("api-key-gemini") || "",
+      provider: localStorage.getItem("api-provider") || "zhipu"
+    };
+  } catch { return { zhipu: "", gemini: "", provider: "zhipu" }; }
+}
+function saveApiKeys(zhipu, gemini, provider) {
+  try {
+    localStorage.setItem("api-key-zhipu", zhipu);
+    localStorage.setItem("api-key-gemini", gemini);
+    localStorage.setItem("api-provider", provider);
+  } catch (e) { console.error("Failed to save API keys:", e); }
+}
+
+/* ═══════════════════════════════════════════════
+   API SETTINGS COMPONENT
+   ═══════════════════════════════════════════════ */
+function ApiSettings() {
+  const [open, setOpen] = useState(false);
+  const stored = getStoredKeys();
+  const [provider, setProvider] = useState(stored.provider);
+  const [zhipuKey, setZhipuKey] = useState(stored.zhipu);
+  const [geminiKey, setGeminiKey] = useState(stored.gemini);
+  const [saved, setSaved] = useState(false);
+
+  const hasKey = stored.zhipu || stored.gemini;
+
+  function handleSave() {
+    saveApiKeys(zhipuKey, geminiKey, provider);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); setOpen(false); }, 1200);
+  }
+
+  return (
+    <div className="api-settings">
+      <button className="api-toggle" onClick={() => setOpen(!open)}>
+        ⚙️ API Settings {hasKey ? <span style={{color:"var(--green)",marginLeft:6,fontSize:11}}>● configured</span> : <span style={{color:"var(--red)",marginLeft:6,fontSize:11}}>● no key set</span>}
+        <span style={{float:"right",color:"var(--text-dim)"}}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="api-panel">
+          <div className="api-row">
+            <div className="api-label">AI Provider</div>
+            <div className="api-provider-toggle">
+              <button className={`api-prov-btn ${provider === "zhipu" ? "active" : ""}`} onClick={() => setProvider("zhipu")}>
+                智谱 GLM <span className="free-tag">FREE</span>
+              </button>
+              <button className={`api-prov-btn ${provider === "gemini" ? "active" : ""}`} onClick={() => setProvider("gemini")}>
+                Google Gemini <span className="paid-tag">FREE TIER</span>
+              </button>
+              <button className={`api-prov-btn ${provider === "auto" ? "active" : ""}`} onClick={() => setProvider("auto")}>
+                Auto Fallback
+              </button>
+            </div>
+          </div>
+          {(provider === "zhipu" || provider === "auto") && (
+            <div className="api-row">
+              <div className="api-label">Zhipu GLM API Key — <a href="https://bigmodel.cn" target="_blank" rel="noreferrer" style={{color:"var(--gold)"}}>Get free key →</a></div>
+              <div className="api-key-row">
+                <input className="api-key-input" type="password" placeholder="paste your Zhipu API key here..."
+                  value={zhipuKey} onChange={e => setZhipuKey(e.target.value)} />
+              </div>
+            </div>
+          )}
+          {(provider === "gemini" || provider === "auto") && (
+            <div className="api-row">
+              <div className="api-label">Gemini API Key — <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color:"var(--gold)"}}>Get free key →</a></div>
+              <div className="api-key-row">
+                <input className="api-key-input" type="password" placeholder="paste your Gemini API key here..."
+                  value={geminiKey} onChange={e => setGeminiKey(e.target.value)} />
+              </div>
+            </div>
+          )}
+          <div className="api-hint">
+            🔒 Keys are stored locally in your browser only — never sent anywhere except the AI provider's API.
+          </div>
+          <button className={`api-save-btn ${saved ? "saved" : ""}`} onClick={handleSave} style={{alignSelf:"flex-start"}}>
+            {saved ? "✓ Saved!" : "Save"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   AI API CALLER (user-supplied keys, auto fallback)
+   ═══════════════════════════════════════════════ */
+let _lastCall = 0;
+
+async function callAI(prompt, retries = 2) {
+  const { zhipu, gemini, provider } = getStoredKeys();
+
+  if (!zhipu && !gemini) {
+    throw new Error("No API key configured. Please click ⚙️ API Settings above and add your API key.");
+  }
+
+  const now = Date.now();
+  const wait = Math.max(0, 3000 - (now - _lastCall));
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  _lastCall = Date.now();
+
+  const tryZhipu = async () => {
+    if (!zhipu) throw new Error("No Zhipu key");
+    const res = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + zhipu },
+      body: JSON.stringify({ model: "glm-4-flash", messages: [{ role: "user", content: prompt }], temperature: 0.3, max_tokens: 4096 })
+    });
+    if (!res.ok) throw new Error("Zhipu API error " + res.status);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || "";
+  };
+
+  const tryGemini = async () => {
+    if (!gemini) throw new Error("No Gemini key");
+    for (let attempt = 0; attempt < retries; attempt++) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemini}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.3 } })
+      });
+      if (res.status === 429) {
+        if (attempt < retries - 1) { await new Promise(r => setTimeout(r, 5000 * (attempt + 1))); continue; }
+        throw new Error("AI is busy. Please wait 30 seconds and try again.");
+      }
+      if (!res.ok) throw new Error("Gemini API error " + res.status);
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    }
+  };
+
+  if (provider === "zhipu") return tryZhipu();
+  if (provider === "gemini") return tryGemini();
+  // auto: try zhipu first, fallback to gemini
+  try { return await tryZhipu(); } catch (e) { console.log("Zhipu failed, trying Gemini:", e.message); }
+  return tryGemini();
+}
+
+/* ═══════════════════════════════════════════════
+   SHARED COMPONENTS
+   ═══════════════════════════════════════════════ */
+function Spinner() { return <span className="spinner" />; }
+
+/* ═══════════════════════════════════════════════
+   QUIZ FLIP CARD
+   ═══════════════════════════════════════════════ */
+function QuizCard({ card, onSave, onRemove, saved }) {
+  const [flipped, setFlipped] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+
+  function handleSave() {
+    onSave?.(card);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1500);
+  }
+
+  return (
+    <div className="flip-card-wrapper" onClick={() => setFlipped(!flipped)}>
+      <div className={`flip-card ${flipped ? "flipped" : ""}`}>
+        {/* Front */}
+        <div className="flip-front">
+          <div className="card-category">{card.category}</div>
+          <div className="card-front-content">
+            <span className="card-wrong">{card.original}</span>
+            <span className="card-arrow">→</span>
+            <span className="card-correct">{card.corrected}</span>
+          </div>
+          <div className="card-tap-hint">tap to flip</div>
+        </div>
+        {/* Back */}
+        <div className="flip-back">
+          <div className="card-back-top">
+            <div className="card-category">{card.category}</div>
+            <div className="card-back-title">{card.original} → {card.corrected}</div>
+            <div className="card-back-rule">{card.rule}</div>
+            {card.detail && <div className="card-back-detail">{card.detail}</div>}
+            {card.example && (
+              <div className="card-back-example">
+                <span className="card-ex-label">Example: </span>{card.example}
+              </div>
+            )}
+          </div>
+          <div className="card-actions" onClick={e => e.stopPropagation()}>
+            {saved ? (
+              <button className="card-btn-remove" onClick={() => onRemove?.(card)}>
+                ✕ Remove from Bank
+              </button>
+            ) : justSaved ? (
+              <button className="card-btn-saved" disabled>✓ Saved!</button>
+            ) : (
+              <button className="card-btn-save" onClick={handleSave}>
+                📥 Save to Grammar Bank
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 1: GRAMMAR CHECK (with integrated Bank)
+   ═══════════════════════════════════════════════ */
+function GrammarCheck({ bank, setBank }) {
+  const [view, setView] = useState("check"); // "check" | "bank"
+  const [text, setText] = useState("");
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [cards, setCards] = useState([]);
+  const [savedIds, setSavedIds] = useState(new Set());
+  const [bankFilter, setBankFilter] = useState("all");
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+
+  useEffect(() => { setSavedIds(new Set(bank.map(c => c.id))); }, [bank]);
+
+  const bankCategories = useMemo(() => ["all", ...new Set(bank.map(c => c.category))], [bank]);
+  const bankFiltered = bankFilter === "all" ? bank : bank.filter(c => c.category === bankFilter);
+
+  async function checkGrammar() {
+    if (!text.trim()) return;
+    setLoading(true); setError(""); setResults(null); setCards([]);
+    try {
+      const safeText = text.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ").replace(/\r/g, "").replace(/\t/g, " ");
+
+      const raw = await callAI("You are an English grammar checker. Find ALL grammar errors in the text below. You MUST return valid JSON only, with no extra text before or after.\n\nRequired format:\n{\"corrected\":\"the corrected text\",\"errors\":[{\"original\":\"the wrong word or phrase\",\"corrected\":\"the correct form\",\"rule\":\"one sentence explanation\",\"category\":\"grammar category\"}]}\n\nThe errors array must NOT be empty if there are grammar mistakes.\n\nText:\n" + safeText);
+
+      console.log("AI raw response:", raw);
+      const clean = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+      let parsed;
+      try { parsed = JSON.parse(clean); } catch(pe) {
+        const jsonMatch = clean.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+        else throw new Error("Could not parse AI response");
+      }
+      console.log("Parsed result:", parsed);
+      console.log("Errors count:", parsed.errors?.length);
+
+      setResults(parsed);
+      if (parsed.errors?.length > 0) {
+        const newCards = parsed.errors.map((err, i) => ({
+          id: `${err.original}-${err.corrected}-${Date.now()}-${i}`,
+          original: err.original, corrected: err.corrected,
+          rule: err.rule || err.explanation || "",
+          category: err.category || err.type || "Grammar",
+          detail: err.detail || "", example: err.example || "",
+          timestamp: Date.now()
+        }));
+        console.log("Generated cards:", newCards.length);
+        setCards(newCards);
+      }
+    } catch (e) { setError("Grammar check failed: " + e.message); console.error(e); }
+    setLoading(false);
+  }
+
+  function saveCard(card) {
+    if (savedIds.has(card.id)) return;
+    const updated = [...bank, card];
+    setBank(updated); saveBank(updated);
+  }
+
+  return (
+    <div className="tab-content">
+      {/* Sub-navigation: Check / Bank */}
+      <div className="sub-nav">
+        <button className={`sub-nav-btn ${view === "check" ? "active" : ""}`} onClick={() => setView("check")}>
+          🔍 Grammar Check
+        </button>
+        <button className={`sub-nav-btn ${view === "bank" ? "active" : ""}`} onClick={() => setView("bank")}>
+          📚 Grammar Bank {bank.length > 0 && <span className="sub-badge">{bank.length}</span>}
+        </button>
+      </div>
+
+      {/* === CHECK VIEW === */}
+      {view === "check" && (
+        <>
+          <div className="field-header"><span>YOUR TEXT</span><span>{wordCount} words</span></div>
+          <textarea className="main-textarea" value={text} onChange={e => setText(e.target.value)}
+            placeholder="Type or paste your English text here..." />
+          <div className="btn-row">
+            <button className="btn-primary" onClick={checkGrammar} disabled={loading || !text.trim()}>
+              {loading ? <Spinner /> : "🔍"} {loading ? "Checking..." : "Check Grammar"}
+            </button>
+            <button className="btn-secondary" onClick={() => setText(SAMPLE_TEXT)}>Load Sample</button>
+            <button className="btn-secondary" onClick={() => { setText(""); setResults(null); setError(""); setCards([]); }}>Clear</button>
+          </div>
+
+          {error && <div className="error-box">{error}</div>}
+
+          {results && (
+            <div className="results-area">
+              <div className="corrected-box">
+                <div className="label green">✅ Corrected Text</div>
+                <p className="serif-text">{results.corrected}</p>
+              </div>
+              {cards.length > 0 && (
+                <div className="cards-section">
+                  <div className="label gold">🃏 {cards.length} Grammar Card{cards.length > 1 ? "s" : ""} — tap to flip, save to your bank</div>
+                  <div className="cards-grid">
+                    {cards.map(card => (
+                      <QuizCard key={card.id} card={card} saved={savedIds.has(card.id)}
+                        onSave={saveCard}
+                        onRemove={c => { const u = bank.filter(b => b.id !== c.id); setBank(u); saveBank(u); }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* === BANK VIEW === */}
+      {view === "bank" && (
+        <>
+          {bank.length === 0 ? (
+            <div className="bank-empty-inline">
+              <div className="empty-icon">📚</div>
+              <h3 className="empty-title">Your Grammar Bank is empty</h3>
+              <p className="empty-desc">
+                Switch to <strong>Grammar Check</strong>, check your text, then tap a card and click
+                <strong> "Save to Grammar Bank"</strong> to start collecting.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="bank-header">
+                <div className="bank-stats"><span className="bank-count">{bank.length}</span> grammar point{bank.length > 1 ? "s" : ""} saved</div>
+                <button className="btn-clear" onClick={() => { setBank([]); saveBank([]); }}>Clear All</button>
+              </div>
+              {bankCategories.length > 2 && (
+                <div className="cat-filter">
+                  {bankCategories.map(cat => (
+                    <button key={cat} className={`cat-btn ${bankFilter === cat ? "active" : ""}`}
+                      onClick={() => setBankFilter(cat)}>{cat === "all" ? "All" : cat}</button>
+                  ))}
+                </div>
+              )}
+              <div className="cards-grid">
+                {bankFiltered.map(card => (
+                  <QuizCard key={card.id} card={card} saved={true}
+                    onRemove={c => { const u = bank.filter(b => b.id !== c.id); setBank(u); saveBank(u); }} />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 2: SENTENCE UPGRADE (with Essay Bank + Phrases Bank)
+   ═══════════════════════════════════════════════ */
+function SelectionPopup({ position, onSave }) {
+  if (!position) return null;
+  return (
+    <div className="sel-popup" style={{ top: position.y, left: position.x }}>
+      <button className="sel-popup-btn" onMouseDown={e => { e.preventDefault(); onSave(); }}>
+        💎 Save to Phrases
+      </button>
+    </div>
+  );
+}
+
+function SentenceUpgrade({ essayBank, setEssayBank, phrasesBank, setPhrasesBank }) {
+  const [view, setView] = useState("upgrade"); // "upgrade" | "essays" | "phrases"
+  const [text, setText] = useState("");
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [savedVersions, setSavedVersions] = useState(new Set());
+  const [selPopup, setSelPopup] = useState(null); // { x, y, text, level }
+  const [justSavedPhrase, setJustSavedPhrase] = useState(false);
+  const resultsRef = useRef(null);
+
+  // Listen for text selection within upgrade results
+  useEffect(() => {
+    function handleMouseUp(e) {
+      const sel = window.getSelection();
+      const selectedText = sel?.toString().trim();
+      if (!selectedText || selectedText.length < 2) { setSelPopup(null); return; }
+
+      // Check if selection is inside a results area
+      const container = resultsRef.current;
+      if (!container) { setSelPopup(null); return; }
+      const anchorNode = sel.anchorNode;
+      if (!container.contains(anchorNode)) { setSelPopup(null); return; }
+
+      // Find which level card we're in
+      let levelEl = anchorNode.parentElement;
+      let level = "";
+      while (levelEl && levelEl !== container) {
+        if (levelEl.dataset?.level) { level = levelEl.dataset.level; break; }
+        levelEl = levelEl.parentElement;
+      }
+
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      setSelPopup({
+        x: Math.min(rect.left - containerRect.left + rect.width / 2, containerRect.width - 100),
+        y: rect.top - containerRect.top - 44,
+        text: selectedText,
+        level: level || "Unknown"
+      });
+    }
+
+    function handleMouseDown(e) {
+      // If clicking outside popup, clear it
+      if (!e.target.closest('.sel-popup')) {
+        setSelPopup(null);
+      }
+    }
+
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => {
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("mousedown", handleMouseDown);
+    };
+  }, []);
+
+  async function upgrade() {
+    if (!text.trim()) return;
+    setLoading(true); setError(""); setResults(null); setSavedVersions(new Set());
+    try {
+      const safeText = text.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ").replace(/\r/g, "").replace(/\t/g, " ");
+      const raw = await callAI("Rewrite this text at 3 levels. Return ONLY JSON, no markdown:\n{\"original\":\"original\",\"versions\":[{\"level\":\"Intermediate\",\"text\":\"rewrite\",\"highlight\":\"changes\"},{\"level\":\"Advanced\",\"text\":\"rewrite\",\"highlight\":\"changes\"},{\"level\":\"Native-like\",\"text\":\"rewrite\",\"highlight\":\"changes\"}]}\n\nText: \"" + safeText + "\"");
+      setResults(JSON.parse(raw.replace(/```json/g, "").replace(/```/g, "").trim()));
+    } catch (e) { setError("Upgrade failed: " + e.message); console.error(e); }
+    setLoading(false);
+  }
+
+  function saveEssay(version) {
+    const essay = {
+      id: `essay-${version.level}-${Date.now()}`,
+      level: version.level, text: version.text, highlight: version.highlight,
+      original: results?.original || text, timestamp: Date.now()
+    };
+    const updated = [...essayBank, essay];
+    setEssayBank(updated); saveEssayBank(updated);
+    setSavedVersions(prev => new Set([...prev, version.level]));
+  }
+
+  function savePhrase() {
+    if (!selPopup?.text) return;
+    const phrase = {
+      id: `phrase-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      text: selPopup.text,
+      level: selPopup.level,
+      isWord: selPopup.text.split(/\s+/).length <= 3,
+      timestamp: Date.now()
+    };
+    const updated = [...phrasesBank, phrase];
+    setPhrasesBank(updated); savePhrasesBank(updated);
+    setSelPopup(null);
+    setJustSavedPhrase(true);
+    setTimeout(() => setJustSavedPhrase(false), 1500);
+    window.getSelection()?.removeAllRanges();
+  }
+
+  function removeEssay(essay) {
+    const updated = essayBank.filter(e => e.id !== essay.id);
+    setEssayBank(updated); saveEssayBank(updated);
+  }
+
+  function removePhrase(phrase) {
+    const updated = phrasesBank.filter(p => p.id !== phrase.id);
+    setPhrasesBank(updated); savePhrasesBank(updated);
+  }
+
+  const levelColors = { "Intermediate": "#60a5fa", "Advanced": "#a78bfa", "Native-like": "#e2b714" };
+
+  return (
+    <div className="tab-content">
+      {/* Sub-navigation */}
+      <div className="sub-nav">
+        <button className={`sub-nav-btn ${view === "upgrade" ? "active" : ""}`} onClick={() => setView("upgrade")}>
+          ✨ Upgrade
+        </button>
+        <button className={`sub-nav-btn ${view === "essays" ? "active" : ""}`} onClick={() => setView("essays")}>
+          📖 Essays {essayBank.length > 0 && <span className="sub-badge">{essayBank.length}</span>}
+        </button>
+        <button className={`sub-nav-btn ${view === "phrases" ? "active" : ""}`} onClick={() => setView("phrases")}>
+          💎 Phrases {phrasesBank.length > 0 && <span className="sub-badge">{phrasesBank.length}</span>}
+        </button>
+      </div>
+
+      {/* === UPGRADE VIEW === */}
+      {view === "upgrade" && (
+        <>
+          <textarea className="main-textarea" value={text} onChange={e => setText(e.target.value)}
+            placeholder="Enter a sentence or paragraph to upgrade..." />
+          <div className="btn-row">
+            <button className="btn-upgrade" onClick={upgrade} disabled={loading || !text.trim()}>
+              {loading ? <Spinner /> : "✨"} {loading ? "Upgrading..." : "Upgrade Sentence"}
+            </button>
+            <button className="btn-secondary" onClick={() => setText(SAMPLE_TEXT)}>Load Sample</button>
+          </div>
+          {error && <div className="error-box">{error}</div>}
+
+          {/* Saved phrase toast */}
+          {justSavedPhrase && <div className="phrase-toast">✓ Phrase saved to bank!</div>}
+
+          {results && (
+            <div className="results-area" ref={resultsRef} style={{ position: "relative" }}>
+              <div className="sel-hint">💡 Select any word or sentence to save to your Phrases bank</div>
+              <SelectionPopup position={selPopup} onSave={savePhrase} />
+              {results.versions?.map((v, i) => (
+                <div key={i} className="upgrade-card" data-level={v.level} style={{ borderColor: `${levelColors[v.level] || "#555"}40` }}>
+                  <div className="upgrade-card-header">
+                    <span className="level-badge" style={{
+                      background: `${levelColors[v.level] || "#555"}20`, color: levelColors[v.level] || "#aaa"
+                    }}>{v.level}</span>
+                    <button
+                      className={savedVersions.has(v.level) ? "essay-save-btn saved" : "essay-save-btn"}
+                      onClick={() => !savedVersions.has(v.level) && saveEssay(v)}
+                      disabled={savedVersions.has(v.level)}
+                    >
+                      {savedVersions.has(v.level) ? "✓ Saved" : "📥 Save"}
+                    </button>
+                  </div>
+                  <p className="serif-text upgrade-selectable">{v.text}</p>
+                  <p className="hint-text">💡 {v.highlight}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* === ESSAY BANK VIEW === */}
+      {view === "essays" && (
+        <>
+          {essayBank.length === 0 ? (
+            <div className="bank-empty-inline">
+              <div className="empty-icon">📖</div>
+              <h3 className="empty-title">Your Essay Bank is empty</h3>
+              <p className="empty-desc">
+                Switch to <strong>Upgrade</strong>, upgrade your text, then click
+                <strong> "📥 Save"</strong> on any version to collect it here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="bank-header">
+                <div className="bank-stats"><span className="bank-count">{essayBank.length}</span> essay{essayBank.length > 1 ? "s" : ""} saved</div>
+                <button className="btn-clear" onClick={() => { setEssayBank([]); saveEssayBank([]); }}>Clear All</button>
+              </div>
+              <div className="essays-list">
+                {[...essayBank].reverse().map(essay => (
+                  <div key={essay.id} className="essay-item" style={{ borderColor: `${levelColors[essay.level] || "#555"}30` }}>
+                    <div className="essay-item-header">
+                      <span className="level-badge" style={{
+                        background: `${levelColors[essay.level] || "#555"}20`, color: levelColors[essay.level] || "#aaa"
+                      }}>{essay.level}</span>
+                      <span className="essay-date">{new Date(essay.timestamp).toLocaleDateString()}</span>
+                      <button className="essay-remove-btn" onClick={() => removeEssay(essay)}>✕</button>
+                    </div>
+                    <p className="serif-text essay-text">{essay.text}</p>
+                    {essay.highlight && <p className="hint-text">💡 {essay.highlight}</p>}
+                    {essay.original && (
+                      <details className="essay-original">
+                        <summary>View original text</summary>
+                        <p>{essay.original}</p>
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* === PHRASES BANK VIEW === */}
+      {view === "phrases" && (
+        <>
+          {phrasesBank.length === 0 ? (
+            <div className="bank-empty-inline">
+              <div className="empty-icon">💎</div>
+              <h3 className="empty-title">Your Phrases Bank is empty</h3>
+              <p className="empty-desc">
+                Switch to <strong>Upgrade</strong>, upgrade your text, then <strong>select any word or sentence</strong> in the results and click <strong>"💎 Save to Phrases"</strong>.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="bank-header">
+                <div className="bank-stats"><span className="bank-count">{phrasesBank.length}</span> phrase{phrasesBank.length > 1 ? "s" : ""} saved</div>
+                <button className="btn-clear" onClick={() => { setPhrasesBank([]); savePhrasesBank([]); }}>Clear All</button>
+              </div>
+              <div className="phrases-grid">
+                {[...phrasesBank].reverse().map(phrase => (
+                  <div key={phrase.id} className={`phrase-chip ${phrase.isWord ? "word" : "sentence"}`}>
+                    <div className="phrase-chip-header">
+                      <span className="phrase-level-dot" style={{ background: levelColors[phrase.level] || "#888" }} />
+                      <span className="phrase-level-label">{phrase.level}</span>
+                      <button className="phrase-remove" onClick={() => removePhrase(phrase)}>✕</button>
+                    </div>
+                    <div className="phrase-text">{phrase.text}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   TAB 3: TYPING PRACTICE
+   ═══════════════════════════════════════════════ */
+function Caret({ style }) { return <span className="caret" style={style} />; }
+
+function TypingEngine({ words, onFinish }) {
+  const [wordIndex, setWordIndex] = useState(0);
+  const [started, setStarted] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [startTime, setStartTime] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [charResults, setCharResults] = useState([]);
+  const [wordStatus, setWordStatus] = useState([]);
+  const wordRefs = useRef([]);
+  const timerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (started && !finished) {
+      timerRef.current = setInterval(() => setElapsed((Date.now() - startTime) / 1000), 100);
+      return () => clearInterval(timerRef.current);
+    }
+  }, [started, finished, startTime]);
+
+  useEffect(() => {
+    const focus = () => inputRef.current?.focus();
+    focus();
+    const handler = (e) => {
+      if (!e.target.closest('textarea') && !e.target.closest('.btn-row') && !e.target.closest('.typing-settings')) focus();
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
+
+  function handleInput(e) {
+    const value = e.target.value;
+    if (!started && value.length > 0) { setStarted(true); setStartTime(Date.now()); }
+    if (value.endsWith(" ")) {
+      const typedWord = value.trim();
+      const expected = words[wordIndex];
+      const isCorrect = typedWord === expected;
+      const wcr = [];
+      for (let i = 0; i < Math.max(typedWord.length, expected.length); i++) {
+        if (i >= expected.length) wcr.push("extra");
+        else if (i >= typedWord.length) wcr.push("missed");
+        else if (typedWord[i] === expected[i]) wcr.push("correct");
+        else wcr.push("wrong");
+      }
+      const newCR = [...charResults]; newCR[wordIndex] = wcr; setCharResults(newCR);
+      const newWS = [...wordStatus]; newWS[wordIndex] = isCorrect ? "correct" : "wrong"; setWordStatus(newWS);
+      const next = wordIndex + 1;
+      if (next >= words.length) {
+        setFinished(true); clearInterval(timerRef.current);
+        const t = (Date.now() - startTime) / 1000;
+        const cw = newWS.filter(s => s === "correct").length;
+        const tc = newCR.flat().filter(c => c === "correct").length;
+        const ta = newCR.flat().length;
+        onFinish?.({ wpm: Math.round((cw / t) * 60), rawWpm: Math.round((next / t) * 60), accuracy: Math.round((tc / ta) * 100), time: t, correct: cw, total: words.length });
+      } else { setWordIndex(next); }
+      e.target.value = "";
+      return;
+    }
+    const typedWord = value;
+    const expected = words[wordIndex];
+    const live = [];
+    for (let i = 0; i < typedWord.length; i++) {
+      if (i >= expected.length) live.push("extra");
+      else if (typedWord[i] === expected[i]) live.push("correct");
+      else live.push("wrong");
+    }
+    const newCR = [...charResults]; newCR[wordIndex] = live; setCharResults(newCR);
+  }
+
+  const currentWordY = wordRefs.current[wordIndex]?.offsetTop || 0;
+  const getCharColor = (wi, ci) => {
+    const r = charResults[wi];
+    if (!r || ci >= r.length) return "var(--mt-sub)";
+    if (r[ci] === "correct") return "var(--mt-text)";
+    if (r[ci] === "wrong") return "var(--mt-error)";
+    if (r[ci] === "extra") return "var(--mt-error-extra)";
+    return "var(--mt-sub)";
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input ref={inputRef} onInput={handleInput} autoFocus autoComplete="off" autoCorrect="off"
+        autoCapitalize="off" spellCheck="false" className="hidden-input" />
+      <div className="words-display" onClick={() => inputRef.current?.focus()}>
+        <div style={{ transform: `translateY(${-Math.max(0, currentWordY - 4)}px)`, transition: "transform 0.15s ease" }}>
+          {words.map((word, wi) => (
+            <span key={wi} ref={el => wordRefs.current[wi] = el} className="word-span"
+              style={wordStatus[wi] === "wrong" ? { borderBottom: "2px solid var(--mt-error)" } : {}}>
+              {word.split("").map((char, ci) => (
+                <span key={ci} style={{ color: getCharColor(wi, ci), transition: "color 0.05s" }}>{char}</span>
+              ))}
+              {charResults[wi]?.filter(r => r === "extra").map((_, ei) => (
+                <span key={`e${ei}`} style={{ color: "var(--mt-error-extra)" }}>•</span>
+              ))}
+              {wi === wordIndex && !finished && (
+                <Caret style={{ left: `${(charResults[wi]?.length || 0) * 0.605}em`, top: 6 }} />
+              )}
+            </span>
+          ))}
+        </div>
+      </div>
+      {started && !finished && (
+        <div className="live-stats">
+          <span>{elapsed.toFixed(1)}s</span>
+          <span>{elapsed > 0 ? Math.round((wordStatus.filter(s => s === "correct").length / elapsed) * 60) : 0} wpm</span>
+          <span>{wordIndex}/{words.length}</span>
+        </div>
+      )}
+      {!started && <div className="hint-center">click here and start typing</div>}
+    </div>
+  );
+}
+
+function TypingResults({ stats, onRestart }) {
+  return (
+    <div className="typing-results">
+      <div className="stats-row">
+        {[
+          { label: "wpm", value: stats.wpm, cls: "gold" },
+          { label: "accuracy", value: `${stats.accuracy}%`, cls: "" },
+          { label: "raw", value: stats.rawWpm, cls: "" },
+          { label: "time", value: `${stats.time.toFixed(1)}s`, cls: "" },
+        ].map((s, i) => (
+          <div key={i} className="stat-block">
+            <div className={`stat-value ${s.cls}`}>{s.value}</div>
+            <div className="stat-label">{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <div className="stat-detail">
+        correct: <span className="text-light">{stats.correct}</span> · wrong: <span className="text-error">{stats.total - stats.correct}</span>
+      </div>
+      <button className="btn-restart" onClick={onRestart}>restart →</button>
+    </div>
+  );
+}
+
+function TypingPractice() {
+  const [subMode, setSubMode] = useState("words");
+  const [wordCount, setWordCount] = useState(25);
+  const [customText, setCustomText] = useState("");
+  const [gameWords, setGameWords] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [key, setKey] = useState(0);
+
+  function startTimed(count) {
+    setStats(null); setGameWords(shuffleWords(count || wordCount)); setKey(k => k + 1);
+  }
+  function startCustom() {
+    if (!customText.trim()) return;
+    setStats(null); setGameWords(customText.trim().split(/\s+/)); setKey(k => k + 1);
+  }
+  function restart() { subMode === "words" ? startTimed() : startCustom(); }
+  useEffect(() => { if (subMode === "words" && !gameWords) startTimed(); }, [subMode]);
+
+  return (
+    <div className="tab-content typing-tab">
+      <div className="typing-settings">
+        <div className="mode-toggle">
+          {[{ id: "words", label: "🔤 words" }, { id: "custom", label: "📝 custom" }].map(m => (
+            <button key={m.id} className={`mode-btn ${subMode === m.id ? "active" : ""}`}
+              onClick={() => { setSubMode(m.id); setGameWords(null); setStats(null); }}>{m.label}</button>
+          ))}
+        </div>
+        {subMode === "words" && (
+          <div className="count-toggle">
+            {[10, 25, 50, 100].map(n => (
+              <button key={n} className={`count-btn ${wordCount === n ? "active" : ""}`}
+                onClick={() => { setWordCount(n); startTimed(n); }}>{n}</button>
+            ))}
+          </div>
+        )}
+        {gameWords && <button className="restart-btn" onClick={restart}>↻</button>}
+      </div>
+      {subMode === "custom" && !gameWords && (
+        <div className="custom-input-area">
+          <div className="field-header-mt">PASTE YOUR TEXT BELOW</div>
+          <textarea className="custom-textarea" value={customText} onChange={e => setCustomText(e.target.value)}
+            placeholder="Paste your essay, article, or any text here..." />
+          <div className="custom-footer">
+            <span className="word-count-hint">{customText.trim() ? `${customText.trim().split(/\s+/).length} words` : ""}</span>
+            <button className="btn-start" onClick={startCustom} disabled={!customText.trim()}>start typing →</button>
+          </div>
+        </div>
+      )}
+      {gameWords && !stats && <div className="fade-up"><TypingEngine key={key} words={gameWords} onFinish={setStats} /></div>}
+      {stats && <TypingResults stats={stats} onRestart={restart} />}
+    </div>
+  );
+}
+
+/* GrammarBank is now integrated into GrammarCheck */
+
+/* ═══════════════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════════════ */
+const TABS = [
+  { id: "grammar", label: "Grammar Check", icon: "🔍" },
+  { id: "upgrade", label: "Sentence Upgrade", icon: "✨" },
+  { id: "typing", label: "Typing Practice", icon: "⌨️" },
+];
+
+function App() {
+  const [tab, setTab] = useState("grammar");
+  const [bank, setBank] = useState([]);
+  const [essayBank, setEssayBank] = useState([]);
+  const [phrasesBank, setPhrasesBank] = useState([]);
+  useEffect(() => { loadBank().then(setBank); loadEssayBank().then(setEssayBank); loadPhrasesBank().then(setPhrasesBank); }, []);
+
+  return (
+    <div className="app-root">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600;700&family=Literata:wght@400;600&family=DM+Sans:wght@400;500;600;700;800&display=swap');
+        :root {
+          --bg: #1a1a2e; --bg2: #16162a; --surface: rgba(255,255,255,0.03);
+          --border: rgba(255,255,255,0.07); --text: #d1d0c5; --text-dim: #646669;
+          --gold: #e2b714; --gold-dim: rgba(226,183,20,0.15);
+          --green: #50c878; --green-dim: rgba(80,200,120,0.1);
+          --red: #ca4754; --red-dim: rgba(202,71,84,0.1);
+          --purple: #a78bfa; --purple-dim: rgba(167,139,250,0.15);
+          --blue: #60a5fa;
+          --mt-sub: #646669; --mt-text: #d1d0c5; --mt-error: #ca4754; --mt-error-extra: #7e2a33;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::selection { background: rgba(226,183,20,0.25); }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes caretBlink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+        .app-root { min-height:100vh; background:var(--bg); font-family:'DM Sans',sans-serif; padding:20px 16px; }
+        .app-container { max-width:780px; margin:0 auto; }
+        .app-header { text-align:center; margin-bottom:24px; }
+        .app-header h1 { font-size:26px; font-weight:800; letter-spacing:-0.5px; background:linear-gradient(135deg,var(--gold),#f0c040); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .app-header p { color:var(--text-dim); font-size:13px; margin-top:4px; font-family:'Roboto Mono',monospace; }
+
+        .tab-bar { display:flex; border-radius:12px; background:var(--surface); border:1px solid var(--border); padding:4px; margin-bottom:20px; gap:3px; }
+        .tab-btn { flex:1; padding:10px 4px; border-radius:8px; border:none; cursor:pointer; background:transparent; color:#555; font-weight:600; font-size:11.5px; font-family:'DM Sans',sans-serif; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:4px; position:relative; white-space:nowrap; }
+        .tab-btn.active { background:var(--gold-dim); color:var(--gold); }
+        .tab-btn:hover:not(.active) { color:#888; }
+        .tab-badge { position:absolute; top:2px; right:4px; background:var(--gold); color:var(--bg); font-size:9px; font-weight:700; min-width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:0 4px; font-family:'Roboto Mono',monospace; }
+
+        .content-panel { padding:24px; border-radius:14px; background:var(--surface); border:1px solid var(--border); min-height:420px; }
+        .tab-content { display:flex; flex-direction:column; gap:18px; }
+        .field-header { display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); font-family:'Roboto Mono',monospace; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:-10px; }
+        .main-textarea { width:100%; min-height:160px; padding:18px; border-radius:12px; background:rgba(255,255,255,0.035); border:1px solid var(--border); color:var(--text); font-size:16px; font-family:'Literata',Georgia,serif; line-height:1.8; resize:vertical; outline:none; transition:border-color 0.3s; }
+        .main-textarea:focus { border-color:rgba(226,183,20,0.4); }
+        .main-textarea::placeholder { color:#444; }
+        .btn-row { display:flex; gap:10px; flex-wrap:wrap; }
+        .btn-primary { padding:11px 24px; border-radius:9px; border:none; cursor:pointer; background:linear-gradient(135deg,var(--gold),#d4a010); color:var(--bg); font-weight:700; font-size:14px; display:flex; align-items:center; gap:7px; transition:all 0.2s; font-family:'DM Sans',sans-serif; }
+        .btn-primary:disabled { opacity:0.5; cursor:default; }
+        .btn-upgrade { padding:11px 24px; border-radius:9px; border:none; cursor:pointer; background:linear-gradient(135deg,var(--purple),#7c3aed); color:#fff; font-weight:700; font-size:14px; display:flex; align-items:center; gap:7px; transition:all 0.2s; font-family:'DM Sans',sans-serif; }
+        .btn-upgrade:disabled { opacity:0.5; cursor:default; }
+        .btn-secondary { padding:11px 20px; border-radius:9px; border:1px solid var(--border); background:var(--surface); color:#aaa; cursor:pointer; font-size:13px; font-family:'DM Sans',sans-serif; }
+        .error-box { padding:14px; border-radius:10px; background:var(--red-dim); color:var(--red); border:1px solid rgba(202,71,84,0.2); font-size:14px; }
+        .results-area { display:flex; flex-direction:column; gap:16px; animation:fadeIn 0.4s ease; }
+        .corrected-box { padding:18px; border-radius:12px; background:var(--green-dim); border:1px solid rgba(80,200,120,0.15); }
+        .label { font-size:11px; font-family:'Roboto Mono',monospace; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; }
+        .label.green { color:var(--green); }
+        .label.gold { color:var(--gold); }
+        .serif-text { font-size:16px; line-height:1.8; color:var(--text); font-family:'Literata',Georgia,serif; }
+        .upgrade-card { padding:18px; border-radius:12px; background:rgba(255,255,255,0.02); border:1px solid; display:flex; flex-direction:column; gap:8px; }
+        .upgrade-card-header { display:flex; justify-content:space-between; align-items:center; }
+        .essay-save-btn { padding:5px 14px; border-radius:7px; border:1px solid rgba(80,200,120,0.3); background:transparent; color:var(--green); cursor:pointer; font-size:12px; font-weight:600; font-family:'DM Sans',sans-serif; transition:all 0.2s; white-space:nowrap; }
+        .essay-save-btn:hover:not(.saved) { background:var(--green-dim); }
+        .essay-save-btn.saved { background:var(--green-dim); border-color:rgba(80,200,120,0.2); cursor:default; color:var(--green); }
+        .essays-list { display:flex; flex-direction:column; gap:12px; }
+        .essay-item { padding:18px; border-radius:12px; background:rgba(255,255,255,0.02); border:1px solid; display:flex; flex-direction:column; gap:8px; animation:fadeIn 0.3s ease; }
+        .essay-item-header { display:flex; align-items:center; gap:10px; }
+        .essay-date { font-size:11px; color:var(--text-dim); font-family:'Roboto Mono',monospace; margin-left:auto; }
+        .essay-remove-btn { background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; transition:all 0.2s; }
+        .essay-remove-btn:hover { color:var(--red); background:var(--red-dim); }
+        .essay-text { font-size:15px; }
+        .essay-original { margin-top:4px; font-size:12px; color:var(--text-dim); }
+        .essay-original summary { cursor:pointer; color:var(--text-dim); font-family:'Roboto Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:1px; padding:4px 0; }
+        .essay-original summary:hover { color:var(--text); }
+        .essay-original p { margin-top:6px; padding:10px; border-radius:8px; background:rgba(255,255,255,0.02); border:1px solid var(--border); line-height:1.6; font-family:'Literata',Georgia,serif; color:var(--text-dim); }
+
+        /* ═══ SELECTION POPUP & PHRASES ═══ */
+        .sel-hint { font-size:12px; color:#4a4c55; font-family:'Roboto Mono',monospace; text-align:center; padding:2px 0 6px; }
+        .upgrade-selectable { cursor:text; user-select:text; }
+        .sel-popup { position:absolute; z-index:100; transform:translateX(-50%); animation:fadeIn 0.15s ease; }
+        .sel-popup-btn { padding:7px 16px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:12px; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; font-family:'DM Sans',sans-serif; white-space:nowrap; box-shadow:0 4px 16px rgba(0,0,0,0.4); transition:all 0.15s; }
+        .sel-popup-btn:hover { filter:brightness(1.15); transform:scale(1.03); }
+        .phrase-toast { text-align:center; padding:8px 16px; border-radius:8px; background:var(--green-dim); color:var(--green); font-size:13px; font-weight:600; animation:fadeIn 0.2s ease; }
+
+        .phrases-grid { display:flex; flex-wrap:wrap; gap:10px; margin-top:6px; }
+        .phrase-chip { padding:12px 16px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border); display:flex; flex-direction:column; gap:6px; animation:fadeIn 0.3s ease; transition:all 0.2s; }
+        .phrase-chip.word { max-width:200px; }
+        .phrase-chip.sentence { width:100%; }
+        .phrase-chip:hover { border-color:rgba(139,92,246,0.3); background:rgba(139,92,246,0.04); }
+        .phrase-chip-header { display:flex; align-items:center; gap:6px; }
+        .phrase-level-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+        .phrase-level-label { font-size:10px; font-family:'Roboto Mono',monospace; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; }
+        .phrase-remove { margin-left:auto; background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:12px; padding:2px 4px; border-radius:4px; opacity:0.5; transition:all 0.2s; }
+        .phrase-remove:hover { opacity:1; color:var(--red); background:var(--red-dim); }
+        .phrase-text { font-size:15px; color:var(--text); line-height:1.6; font-family:'Literata',Georgia,serif; }
+        .level-badge { display:inline-block; width:fit-content; padding:3px 12px; border-radius:20px; font-size:11px; font-weight:700; font-family:'Roboto Mono',monospace; text-transform:uppercase; letter-spacing:1px; }
+        .hint-text { font-size:13px; color:var(--text-dim); }
+        .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(0,0,0,0.2); border-top-color:var(--bg); border-radius:50%; animation:spin 0.6s linear infinite; }
+
+        /* ═══ FLIP CARDS ═══ */
+        .sub-nav { display:flex; gap:6px; margin-bottom:4px; }
+        .sub-nav-btn { padding:8px 18px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-dim); cursor:pointer; font-size:13px; font-weight:600; font-family:'DM Sans',sans-serif; transition:all 0.2s; display:flex; align-items:center; gap:6px; }
+        .sub-nav-btn.active { background:var(--gold-dim); color:var(--gold); border-color:rgba(226,183,20,0.25); }
+        .sub-nav-btn:hover:not(.active) { color:var(--text); }
+        .sub-badge { background:var(--gold); color:var(--bg); font-size:10px; font-weight:700; min-width:18px; height:18px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; padding:0 5px; font-family:'Roboto Mono',monospace; }
+        .bank-empty-inline { text-align:center; padding:40px 20px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+        .cards-section { margin-top:4px; }
+        .cards-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; margin-top:10px; }
+        .flip-card-wrapper { perspective:800px; cursor:pointer; height:240px; }
+        .flip-card { position:relative; width:100%; height:100%; transition:transform 0.5s cubic-bezier(0.4,0,0.2,1); transform-style:preserve-3d; }
+        .flip-card.flipped { transform:rotateY(180deg); }
+        .flip-front, .flip-back { position:absolute; top:0; left:0; width:100%; height:100%; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:14px; padding:18px; display:flex; flex-direction:column; overflow:hidden; }
+        .flip-front { background:linear-gradient(145deg,#232340,#1e1e38); border:1px solid rgba(226,183,20,0.2); justify-content:center; align-items:center; gap:14px; }
+        .flip-back { background:linear-gradient(145deg,#1e1e38,#2a2a48); border:1px solid rgba(167,139,250,0.25); transform:rotateY(180deg); gap:0; }
+        .card-back-top { flex:1; display:flex; flex-direction:column; gap:7px; overflow-y:auto; }
+        .card-category { font-size:10px; font-family:'Roboto Mono',monospace; text-transform:uppercase; letter-spacing:2px; color:var(--purple); background:var(--purple-dim); padding:3px 10px; border-radius:12px; align-self:flex-start; }
+        .card-front-content { display:flex; align-items:center; gap:12px; font-size:20px; font-weight:700; flex-wrap:wrap; justify-content:center; }
+        .card-wrong { color:var(--red); text-decoration:line-through; }
+        .card-arrow { color:#555; font-size:16px; }
+        .card-correct { color:var(--green); }
+        .card-tap-hint { font-size:11px; color:#444; font-family:'Roboto Mono',monospace; position:absolute; bottom:12px; }
+        .card-back-title { font-size:14px; font-weight:700; color:var(--text); }
+        .card-back-rule { font-size:13px; color:var(--text); line-height:1.5; }
+        .card-back-detail { font-size:12px; color:var(--text-dim); line-height:1.5; border-left:2px solid var(--purple); padding-left:10px; }
+        .card-back-example { font-size:12px; color:var(--blue); font-style:italic; }
+        .card-ex-label { font-style:normal; color:var(--text-dim); }
+        .card-actions { margin-top:8px; flex-shrink:0; }
+        .card-btn-save { width:100%; padding:8px 16px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px; background:linear-gradient(135deg,var(--green),#3da06a); color:#fff; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
+        .card-btn-save:hover { filter:brightness(1.1); transform:translateY(-1px); }
+        .card-btn-saved { width:100%; padding:8px 16px; border-radius:8px; border:none; font-weight:700; font-size:13px; background:rgba(80,200,120,0.15); color:var(--green); font-family:'DM Sans',sans-serif; cursor:default; }
+        .card-btn-remove { width:100%; padding:8px 16px; border-radius:8px; border:1px solid rgba(202,71,84,0.3); cursor:pointer; font-weight:600; font-size:12px; background:transparent; color:var(--red); font-family:'DM Sans',sans-serif; transition:all 0.2s; }
+        .card-btn-remove:hover { background:var(--red-dim); }
+
+        /* ═══ GRAMMAR BANK ═══ */
+        .bank-header { display:flex; justify-content:space-between; align-items:center; }
+        .bank-stats { font-family:'Roboto Mono',monospace; font-size:13px; color:var(--text-dim); }
+        .bank-count { color:var(--gold); font-weight:700; font-size:20px; }
+        .btn-clear { padding:6px 16px; border-radius:8px; border:1px solid rgba(202,71,84,0.3); background:transparent; color:var(--red); cursor:pointer; font-size:12px; font-family:'DM Sans',sans-serif; }
+        .cat-filter { display:flex; gap:6px; flex-wrap:wrap; }
+        .cat-btn { padding:5px 14px; border-radius:20px; border:1px solid var(--border); background:transparent; color:var(--text-dim); cursor:pointer; font-size:12px; font-family:'Roboto Mono',monospace; transition:all 0.2s; }
+        .cat-btn.active { background:var(--purple-dim); color:var(--purple); border-color:rgba(167,139,250,0.3); }
+        .bank-empty { text-align:center; padding:48px 20px; align-items:center; }
+        .empty-icon { font-size:56px; margin-bottom:12px; }
+        .empty-title { color:var(--text); font-size:20px; font-weight:700; }
+        .empty-desc { color:var(--text-dim); font-size:14px; line-height:1.7; max-width:400px; margin-top:8px; }
+        .empty-desc strong { color:var(--gold); }
+
+        /* ═══ TYPING ═══ */
+        .typing-tab { gap:16px; }
+        .typing-settings { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+        .mode-toggle { display:flex; background:rgba(255,255,255,0.04); border-radius:8px; overflow:hidden; }
+        .mode-btn { padding:7px 16px; border:none; cursor:pointer; background:transparent; color:var(--text-dim); font-family:'Roboto Mono',monospace; font-size:12px; font-weight:400; transition:all 0.2s; }
+        .mode-btn.active { background:var(--gold-dim); color:var(--gold); font-weight:600; }
+        .count-toggle { display:flex; gap:3px; }
+        .count-btn { padding:5px 13px; border-radius:6px; border:none; cursor:pointer; background:transparent; color:var(--text-dim); font-family:'Roboto Mono',monospace; font-size:12px; }
+        .count-btn.active { background:var(--gold-dim); color:var(--gold); font-weight:600; }
+        .restart-btn { padding:5px 12px; border-radius:6px; border:none; cursor:pointer; background:transparent; color:var(--text-dim); font-size:16px; }
+        .restart-btn:hover { color:var(--text); }
+        .hidden-input { position:absolute; opacity:0; width:0; height:0; top:0; left:0; pointer-events:auto; }
+        .words-display { font-size:24px; line-height:44px; font-family:'Roboto Mono',monospace; color:var(--mt-sub); position:relative; overflow:hidden; height:140px; cursor:text; user-select:none; }
+        .word-span { display:inline-block; margin-right:10px; margin-bottom:3px; position:relative; }
+        .caret { position:absolute; width:2.5px; height:1.3em; background:var(--gold); border-radius:2px; animation:caretBlink 1s step-end infinite; transition:left 0.08s ease,top 0.08s ease; z-index:10; }
+        .live-stats { display:flex; gap:28px; margin-top:16px; justify-content:center; font-family:'Roboto Mono',monospace; font-size:13px; color:var(--text-dim); }
+        .hint-center { text-align:center; margin-top:20px; font-size:12px; color:#3a3c3f; font-family:'Roboto Mono',monospace; }
+        .custom-input-area { animation:fadeUp 0.3s ease; }
+        .field-header-mt { font-size:11px; color:var(--text-dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:1.5px; font-family:'Roboto Mono',monospace; }
+        .custom-textarea { width:100%; min-height:160px; padding:18px; border-radius:10px; background:rgba(255,255,255,0.04); border:2px solid var(--border); color:var(--text); font-size:15px; font-family:'Roboto Mono',monospace; line-height:1.7; resize:vertical; outline:none; }
+        .custom-textarea:focus { border-color:rgba(226,183,20,0.35); }
+        .custom-textarea::placeholder { color:#444; }
+        .custom-footer { display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+        .word-count-hint { font-size:13px; color:var(--text-dim); font-family:'Roboto Mono',monospace; }
+        .btn-start { padding:9px 24px; border-radius:8px; border:none; cursor:pointer; background:var(--gold); color:var(--bg); font-weight:700; font-size:13px; font-family:'Roboto Mono',monospace; }
+        .btn-start:disabled { background:#3a3c3f; color:var(--text-dim); cursor:default; }
+        .typing-results { text-align:center; padding:32px 0; animation:fadeUp 0.5s ease; }
+        .stats-row { display:flex; justify-content:center; gap:40px; margin-bottom:28px; flex-wrap:wrap; }
+        .stat-block { text-align:center; }
+        .stat-value { font-size:48px; font-weight:700; color:var(--text); font-family:'Roboto Mono',monospace; }
+        .stat-value.gold { color:var(--gold); }
+        .stat-label { font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:2px; font-family:'Roboto Mono',monospace; }
+        .stat-detail { font-size:13px; color:var(--text-dim); margin-bottom:24px; font-family:'Roboto Mono',monospace; }
+        .text-light { color:var(--text); }
+        .text-error { color:var(--red); }
+        .btn-restart { padding:10px 28px; border-radius:8px; border:none; cursor:pointer; background:var(--gold); color:var(--bg); font-weight:700; font-size:14px; font-family:'Roboto Mono',monospace; }
+        .btn-restart:hover { filter:brightness(1.1); }
+        /* ═══ API SETTINGS ═══ */
+        .api-settings { margin-bottom:16px; }
+        .api-toggle { display:block; width:100%; padding:10px 16px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--text-dim); cursor:pointer; font-size:13px; font-family:'DM Sans',sans-serif; text-align:left; transition:all 0.2s; }
+        .api-toggle:hover { color:var(--text); border-color:rgba(255,255,255,0.12); }
+        .api-panel { margin-top:8px; padding:16px; border-radius:12px; background:rgba(255,255,255,0.025); border:1px solid var(--border); display:flex; flex-direction:column; gap:12px; animation:fadeIn 0.2s ease; }
+        .api-row { display:flex; flex-direction:column; gap:6px; }
+        .api-label { font-size:11px; color:var(--text-dim); font-family:'Roboto Mono',monospace; text-transform:uppercase; letter-spacing:1.5px; }
+        .api-provider-toggle { display:flex; gap:6px; }
+        .api-prov-btn { flex:1; padding:9px 14px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-dim); cursor:pointer; font-size:13px; font-weight:600; font-family:'DM Sans',sans-serif; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+        .api-prov-btn.active { background:var(--gold-dim); color:var(--gold); border-color:rgba(226,183,20,0.25); }
+        .free-tag { font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(80,200,120,0.15); color:var(--green); font-weight:700; }
+        .paid-tag { font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(167,139,250,0.15); color:var(--purple); font-weight:700; }
+        .api-key-row { display:flex; gap:8px; }
+        .api-key-input { flex:1; padding:10px 14px; border-radius:8px; border:1px solid var(--border); background:rgba(255,255,255,0.04); color:var(--text); font-size:14px; font-family:'Roboto Mono',monospace; outline:none; }
+        .api-key-input:focus { border-color:rgba(226,183,20,0.4); }
+        .api-key-input::placeholder { color:#444; }
+        .api-save-btn { padding:10px 20px; border-radius:8px; border:none; cursor:pointer; background:var(--gold); color:var(--bg); font-weight:700; font-size:13px; font-family:'DM Sans',sans-serif; transition:all 0.2s; min-width:60px; }
+        .api-save-btn.saved { background:var(--green-dim); color:var(--green); }
+        .api-hint { font-size:12px; color:var(--text-dim); line-height:1.5; }
+        .api-hint a { color:var(--gold); text-decoration:none; }
+        .api-hint a:hover { text-decoration:underline; }
+
+        .fade-up { animation:fadeUp 0.3s ease; }
+        @media (max-width:600px) {
+          .content-panel { padding:16px; }
+          .words-display { font-size:20px; line-height:38px; height:120px; }
+          .stat-value { font-size:36px; }
+          .stats-row { gap:24px; }
+          .cards-grid { grid-template-columns:1fr; }
+          .tab-btn { font-size:10px; padding:9px 2px; }
+        }
+      `}</style>
+
+      <div className="app-container">
+        <div className="app-header">
+          <h1>English Learning Studio</h1>
+          <p>powered by AI</p>
+        </div>
+        <div className="tab-bar">
+          {TABS.map(t => (
+            <button key={t.id} className={`tab-btn ${tab === t.id ? "active" : ""}`}
+              onClick={() => setTab(t.id)}>
+              <span>{t.icon}</span> {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="content-panel">
+          {tab !== "typing" && <ApiSettings />}
+          {tab === "grammar" && <GrammarCheck bank={bank} setBank={setBank} />}
+          {tab === "upgrade" && <SentenceUpgrade essayBank={essayBank} setEssayBank={setEssayBank} phrasesBank={phrasesBank} setPhrasesBank={setPhrasesBank} />}
+          {tab === "typing" && <TypingPractice />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
