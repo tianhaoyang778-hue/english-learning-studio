@@ -29,7 +29,34 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Noise overlay ── */
+/* ── Nav ── */
+.top-nav {
+  position:fixed; top:0; left:0; right:0; z-index:1000;
+  padding:16px 32px;
+  display:flex; justify-content:space-between; align-items:center;
+  background:rgba(12,12,20,0.8); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.nav-brand {
+  font-family:'JetBrains Mono', monospace;
+  font-size:13px; color:var(--gold); letter-spacing:1px;
+  text-decoration:none;
+}
+.nav-github {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:8px 18px; border-radius:8px;
+  border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.04);
+  color:var(--text); font-size:13px; font-weight:500;
+  text-decoration:none; letter-spacing:0.3px;
+  transition:all 0.2s;
+}
+.nav-github:hover {
+  border-color:rgba(226,183,20,0.4);
+  background:rgba(226,183,20,0.06);
+  color:var(--gold);
+}
+.nav-github svg { width:16px; height:16px; fill:currentColor; }
 body::before {
   content:''; position:fixed; top:0; left:0; width:100%; height:100%;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
@@ -105,6 +132,22 @@ body::before {
   animation: fadeUp 0.8s ease 0.45s both;
 }
 .hero-cta:hover { transform:translateY(-2px); box-shadow: 0 8px 40px rgba(226,183,20,0.35); }
+.hero-cta-secondary {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:16px 32px; border-radius:14px;
+  border:1px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.04);
+  color:var(--text); font-size:17px; font-weight:500;
+  text-decoration:none; transition:all 0.3s;
+  animation: fadeUp 0.8s ease 0.55s both;
+  margin-left: 12px;
+}
+.hero-cta-secondary:hover {
+  border-color:rgba(226,183,20,0.4);
+  background:rgba(226,183,20,0.06);
+  color:var(--gold);
+  transform:translateY(-2px);
+}
 
 .scroll-hint {
   position:absolute; bottom:32px; left:50%; transform:translateX(-50%);
@@ -366,11 +409,24 @@ body::before {
 <body>
 
 <!-- ══════ HERO ══════ -->
+<!-- NAV -->
+<nav class="top-nav">
+  <a class="nav-brand" href="#">ENGLISH LEARNING STUDIO</a>
+  <a class="nav-github" href="https://github.com/tianhaoyang778-hue/english-learning-studio" target="_blank">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+    查看源码
+  </a>
+</nav>
+
 <section class="hero">
   <div class="hero-badge"><span>●</span> AI-Powered English Learning</div>
   <h1>Write Better.<br><span class="gold">Learn Smarter.</span></h1>
   <p class="hero-sub">一个集语法检查、句子升级、打字练习于一体的 AI 英语学习工具，帮你从写作中积累语法知识和优秀表达。</p>
   <a href="#features" class="hero-cta">探索功能 ↓</a>
+  <a href="https://github.com/tianhaoyang778-hue/english-learning-studio" target="_blank" class="hero-cta-secondary">
+    <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+    查看源码
+  </a>
   <div class="scroll-hint">scroll</div>
 </section>
 
